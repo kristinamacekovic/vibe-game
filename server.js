@@ -159,12 +159,16 @@ function startGame() {
         console.log('Initial infected player:', infectedPlayer.username);
         
         // Notify all players of game start and initial infected
-        broadcastGameState();
+        io.emit('gameState', {
+            started: true,
+            survivorCount: players.size - 1,
+            message: 'Game Started!'
+        });
         io.emit('infected', initialInfected);
 
         // Set game timer
         if (gameTimer) clearTimeout(gameTimer);
-        gameTimer = setTimeout(endGame, INFECTION_TIMER);
+        gameTimer = setTimeout(() => endGame('timeout'), INFECTION_TIMER);
     }
 }
 
@@ -180,43 +184,76 @@ function checkGameEnd() {
     const survivors = getSurvivorCount();
     console.log('Survivors remaining:', survivors);
     
-    broadcastGameState();
+    // Only broadcast game state, don't trigger game restart
+    io.emit('gameState', {
+        started: gameStarted,
+        survivorCount: survivors
+    });
 
     if (survivors === 0) {
-        endGame();
+        endGame('infected');
     }
 }
 
-function endGame() {
+function endGame(reason = 'timeout') {
     if (gameTimer) {
         clearTimeout(gameTimer);
         gameTimer = null;
     }
 
-    // Find winner (last survivor) if any
-    let winner = null;
-    players.forEach((player, id) => {
-        if (!player.infected) {
-            winner = id;
-        }
-    });
+    // Find winner(s) based on game end reason
+    let winnerMessage;
+    if (reason === 'infected') {
+        winnerMessage = 'The infection has spread to everyone!';
+    } else if (reason === 'timeout') {
+        // Count survivors
+        const survivors = [];
+        players.forEach((player) => {
+            if (!player.infected) {
+                survivors.push(player.username);
+            }
+        });
+        winnerMessage = survivors.length > 0 ? 
+            `Survivors win! Congratulations: ${survivors.join(', ')}` :
+            'Everyone was infected!';
+    }
 
-    console.log('Game ended. Winner:', winner ? players.get(winner).username : 'None');
+    console.log('Game ended:', winnerMessage);
 
-    // Reset game state
+    // Reset game state but DON'T reset player infections yet
     gameStarted = false;
-    players.forEach(player => {
-        player.infected = false;
-    });
 
     // Notify clients of game end
-    io.emit('gameOver', winner ? players.get(winner).username : null);
+    io.emit('gameOver', winnerMessage);
     
     // Broadcast final state
-    broadcastGameState();
+    io.emit('gameState', {
+        started: false,
+        message: 'Game Over! ' + winnerMessage
+    });
     
-    // Start new game after delay if enough players
-    setTimeout(checkGameStart, GAME_START_DELAY);
+    // Wait a bit before allowing a new game to start
+    setTimeout(() => {
+        // Reset infections for next game
+        players.forEach(player => {
+            player.infected = false;
+        });
+        
+        // Check if we should start a new game
+        if (players.size >= MIN_PLAYERS) {
+            console.log('Starting new game...');
+            io.emit('gameState', {
+                started: false,
+                message: 'Starting new game in 5 seconds...'
+            });
+            setTimeout(startGame, GAME_START_DELAY);
+        } else {
+            io.emit('gameState', {
+                started: false,
+                message: `Waiting for players (${players.size}/2 needed)`
+            });
+        }
+    }, 5000); // Wait 5 seconds before potentially starting a new game
 }
 
 // Add new function to check proximity-based infection
