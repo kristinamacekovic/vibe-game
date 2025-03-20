@@ -9,7 +9,10 @@ document.body.appendChild(renderer.domElement);
 
 // Add platform
 const platformGeometry = new THREE.BoxGeometry(20, 1, 20);
-const platformMaterial = new THREE.MeshBasicMaterial({ color: 0x404040 });
+const platformMaterial = new THREE.MeshPhongMaterial({ 
+    color: 0x404040,
+    shininess: 30
+});
 const platform = new THREE.Mesh(platformGeometry, platformMaterial);
 scene.add(platform);
 
@@ -67,15 +70,36 @@ class Player {
     }
 
     setInfected(infected) {
+        console.log(`Setting infected state for ${this.username} to ${infected}`);
         this.isInfected = infected;
-        if (this.mesh.material) {
+        if (this.mesh && this.mesh.material) {
+            console.log('Updating material colors');
             this.mesh.material.color.setHex(infected ? 0xff0000 : 0x00ff00);
             this.mesh.material.emissive.setHex(infected ? 0x600000 : 0x006000);
+            this.mesh.material.needsUpdate = true;  // Force material update
+            
+            // Debug: verify mesh is still in scene
+            if (!scene.children.includes(this.mesh)) {
+                console.log('Re-adding mesh to scene after infection update');
+                scene.add(this.mesh);
+            }
+        } else {
+            console.warn('Mesh or material missing for player:', this.username);
         }
     }
 
     updatePosition(position) {
-        this.mesh.position.set(position.x, position.y, position.z);
+        if (this.mesh) {
+            this.mesh.position.set(position.x, position.y, position.z);
+            
+            // Debug: verify mesh is still in scene after position update
+            if (!scene.children.includes(this.mesh)) {
+                console.log('Re-adding mesh to scene after position update');
+                scene.add(this.mesh);
+            }
+        } else {
+            console.warn('Mesh missing for player:', this.username);
+        }
     }
 }
 
@@ -136,21 +160,43 @@ socket.on('playerLeft', (id) => {
 });
 
 socket.on('playerMoved', (playerData) => {
+    console.log('Player moved:', playerData);
     const player = players.get(playerData.id);
     if (player) {
+        console.log('Updating player position:', player.username);
         player.updatePosition(playerData.position);
         player.mesh.rotation.y = playerData.rotation.y;
-        player.setInfected(playerData.infected);
+        
+        // Don't remove the player when updating infection state
+        if (playerData.infected !== player.isInfected) {
+            console.log('Updating infection state for:', player.username);
+            player.setInfected(playerData.infected);
+        }
+        
+        // Debug: check if mesh is in scene
+        if (!scene.children.includes(player.mesh)) {
+            console.log('Re-adding player mesh to scene:', player.username);
+            scene.add(player.mesh);
+        }
     }
 });
 
 socket.on('infected', (playerId) => {
+    console.log('Infection event received for player:', playerId);
     const player = players.get(playerId);
     if (player) {
+        console.log(`Infecting player ${player.username}`);
         player.setInfected(true);
         showNotification(`${player.username} was infected!`);
+        
+        // Debug: check if mesh is in scene
+        if (!scene.children.includes(player.mesh)) {
+            console.log('Re-adding infected player mesh to scene:', player.username);
+            scene.add(player.mesh);
+        }
     }
     if (playerId === socket.id) {
+        console.log('Local player infected');
         localPlayer.setInfected(true);
         showNotification('You were infected! Chase others!');
     }
