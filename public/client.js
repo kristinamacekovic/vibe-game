@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Three.js setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -158,6 +160,7 @@ function showUsernameModal() {
     modal.classList.add('visible');
 }
 
+// Make startGame available globally
 window.startGame = function() {
     const usernameInput = document.getElementById('username-input');
     const username = usernameInput.value.trim();
