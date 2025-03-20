@@ -36,9 +36,13 @@ class Player {
         this.username = username;
         this.isInfected = isInfected;
         
-        // Create player mesh
+        // Create player mesh with larger size and emissive material
         const geometry = new THREE.BoxGeometry(1, 2, 1);
-        const material = new THREE.MeshBasicMaterial({ color: isInfected ? 0xff0000 : 0x00ff00 });
+        const material = new THREE.MeshPhongMaterial({ 
+            color: isInfected ? 0xff0000 : 0x00ff00,
+            emissive: isInfected ? 0x600000 : 0x006000,
+            shininess: 30
+        });
         this.mesh = new THREE.Mesh(geometry, material);
         
         // Set initial position
@@ -64,7 +68,10 @@ class Player {
 
     setInfected(infected) {
         this.isInfected = infected;
-        this.mesh.material.color.setHex(infected ? 0xff0000 : 0x00ff00);
+        if (this.mesh.material) {
+            this.mesh.material.color.setHex(infected ? 0xff0000 : 0x00ff00);
+            this.mesh.material.emissive.setHex(infected ? 0x600000 : 0x006000);
+        }
     }
 
     updatePosition(position) {
@@ -94,9 +101,11 @@ socket.on('currentPlayers', (playersList) => {
     console.log('Received current players:', playersList);
     playersList.forEach(playerInfo => {
         if (playerInfo.id !== playerId && !players.has(playerInfo.id)) {
+            console.log('Creating player:', playerInfo.username);
             const player = new Player(playerInfo.id, playerInfo.username, playerInfo.position, playerInfo.infected);
             players.set(playerInfo.id, player);
             scene.add(player.mesh);
+            console.log('Added player mesh to scene:', playerInfo.username);
             showNotification(`${playerInfo.username} is already in the game`);
         }
     });
@@ -106,9 +115,11 @@ socket.on('currentPlayers', (playersList) => {
 socket.on('playerJoined', (playerData) => {
     console.log('Player joined:', playerData);
     if (playerData.id !== playerId && !players.has(playerData.id)) {
+        console.log('Creating new player:', playerData.username);
         const player = new Player(playerData.id, playerData.username, playerData.position, playerData.infected);
         players.set(playerData.id, player);
         scene.add(player.mesh);
+        console.log('Added new player mesh to scene:', playerData.username);
         showNotification(`${playerData.username} joined the game`);
         updatePlayerCount();
     }
@@ -217,9 +228,9 @@ function animate() {
 }
 
 // Set up camera
-camera.position.y = 20;
-camera.position.z = 0;
-camera.lookAt(0, 0, 0);
+camera.position.y = 15;
+camera.position.z = 15;
+camera.rotation.x = -Math.PI / 4; // Tilt the camera down
 
 // Username modal handling
 function showUsernameModal() {
@@ -259,4 +270,12 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-}); 
+});
+
+// Add lighting to the scene (add this after scene creation)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+directionalLight.position.set(10, 20, 10);
+scene.add(directionalLight); 
