@@ -1,0 +1,9 @@
+# Requirements
+Let's create a fun, chill game that follows these requirements:
+
+- game has to be accessible on web without any login or signup and free-to-play (preferrably its own domain or subdomain)
+- game has to be multiplayer by default
+- can use any engine but usually ThreeJS is recommended
+- NO loading screens and heavy downloads (!!!) has to be almost instantly in the game (except maybe ask username if you want)
+
+I prefer a chill multiplayer vibe but we can brainstorm ideas!
