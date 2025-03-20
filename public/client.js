@@ -1,3 +1,6 @@
+// Initialize Socket.IO
+const socket = io(window.location.origin);
+
 socket.on('playerJoined', (playerData) => {
     console.log('Received playerJoined event for player:', playerData.id, '(local:', playerData.id === playerId, ')');
     

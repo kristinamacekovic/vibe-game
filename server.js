@@ -4,8 +4,8 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const port = process.env.PORT || 3000;
 
-// Serve static files from current directory
-app.use(express.static('./'));
+// Serve static files from public directory
+app.use(express.static('public'));
 
 // Serve node_modules directory
 app.use('/node_modules', express.static('node_modules'));

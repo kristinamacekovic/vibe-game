@@ -1,6 +1,13 @@
 # Vibe Game
 
-A multiplayer web game where players can interact and chase each other.
+A chill multiplayer web game where players can hang out and move around in a 3D space.
+
+## Features
+
+- Instant play - no downloads required
+- Multiplayer support
+- Simple and intuitive controls
+- Real-time player movement
 
 ## Setup
 
@@ -9,27 +16,21 @@ A multiplayer web game where players can interact and chase each other.
 npm install
 ```
 
-2. Run the server:
+2. Start the server:
 ```bash
 npm start
 ```
 
-For development with auto-reload:
+3. Open your browser and navigate to `http://localhost:3000`
+
+## Controls
+
+- Arrow Keys: Move around
+- Q/E: Rotate left/right
+
+## Development
+
+To run the server in development mode with auto-reload:
 ```bash
 npm run dev
-```
-
-## Deployment
-
-This application is ready to be deployed to platforms like Render.com or Heroku.
-
-### Environment Variables
-
-- `PORT`: The port number for the server (default: 3000)
-
-## Game Rules
-
-- Players can move around using arrow keys or WASD
-- Infected players (red) can chase and infect other players
-- Survivors (green) must run away from infected players
-- Last survivor wins! 
+``` 

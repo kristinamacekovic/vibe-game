@@ -1,7 +1,7 @@
 {
   "name": "vibe-game",
   "version": "1.0.0",
-  "description": "A chill multiplayer web game",
+  "description": "A multiplayer web game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
