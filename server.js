@@ -83,10 +83,11 @@ io.on('connection', (socket) => {
             player.rotation = movementData.rotation;
             player.infected = movementData.infected;
             
-            // Broadcast to all other clients
             socket.broadcast.emit('playerMoved', {
                 id: socket.id,
-                ...player
+                position: player.position,
+                rotation: player.rotation,
+                infected: player.infected
             });
         }
     });
@@ -117,6 +118,8 @@ io.on('connection', (socket) => {
             // Check if game should end due to too few players
             if (gameStarted && players.size < MIN_PLAYERS) {
                 endGame();
+            } else {
+                broadcastGameState();
             }
         }
         console.log('=== End Player Disconnected ===\n');
@@ -207,12 +210,13 @@ function endGame() {
     });
 
     // Notify clients of game end
-    io.emit('gameOver', winner);
+    io.emit('gameOver', winner ? players.get(winner).username : null);
     
-    // Start new game after delay
-    setTimeout(() => {
-        checkGameStart();
-    }, GAME_START_DELAY);
+    // Broadcast final state
+    broadcastGameState();
+    
+    // Start new game after delay if enough players
+    setTimeout(checkGameStart, GAME_START_DELAY);
 }
 
 // Add new function to check proximity-based infection

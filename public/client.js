@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // Three.js setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -13,10 +13,27 @@ const platformMaterial = new THREE.MeshBasicMaterial({ color: 0x404040 });
 const platform = new THREE.Mesh(platformGeometry, platformMaterial);
 scene.add(platform);
 
+// UI elements
+const notifications = document.getElementById('notifications');
+const gameStatus = document.getElementById('game-status');
+
+function showNotification(message, duration = 3000) {
+    notifications.textContent = message;
+    notifications.style.display = 'block';
+    setTimeout(() => {
+        notifications.style.display = 'none';
+    }, duration);
+}
+
+function updateGameStatus(message) {
+    gameStatus.textContent = message;
+}
+
 // Player class
 class Player {
-    constructor(id, position = { x: 0, y: 1, z: 0 }, isInfected = false) {
+    constructor(id, username, position = { x: 0, y: 1, z: 0 }, isInfected = false) {
         this.id = id;
+        this.username = username;
         this.isInfected = isInfected;
         
         // Create player mesh
@@ -26,11 +43,32 @@ class Player {
         
         // Set initial position
         this.mesh.position.set(position.x, position.y, position.z);
+
+        // Create player name label
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 64;
+        context.font = '24px Arial';
+        context.fillStyle = 'white';
+        context.textAlign = 'center';
+        context.fillText(username, canvas.width/2, canvas.height/2);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+        this.label = new THREE.Sprite(labelMaterial);
+        this.label.scale.set(2, 0.5, 1);
+        this.label.position.y = 2.5;
+        this.mesh.add(this.label);
     }
 
     setInfected(infected) {
         this.isInfected = infected;
         this.mesh.material.color.setHex(infected ? 0xff0000 : 0x00ff00);
+    }
+
+    updatePosition(position) {
+        this.mesh.position.set(position.x, position.y, position.z);
     }
 }
 
@@ -38,6 +76,7 @@ class Player {
 const players = new Map();
 let playerId = null;
 let localPlayer = null;
+let username = '';
 const moveSpeed = 0.2;
 const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
@@ -48,38 +87,47 @@ const socket = io(window.location.origin);
 socket.on('connect', () => {
     playerId = socket.id;
     showUsernameModal();
+    updateGameStatus('Waiting for players...');
 });
 
 socket.on('currentPlayers', (playersList) => {
+    console.log('Received current players:', playersList);
     playersList.forEach(playerInfo => {
         if (playerInfo.id !== playerId && !players.has(playerInfo.id)) {
-            const player = new Player(playerInfo.id, playerInfo.position, playerInfo.infected);
+            const player = new Player(playerInfo.id, playerInfo.username, playerInfo.position, playerInfo.infected);
             players.set(playerInfo.id, player);
             scene.add(player.mesh);
+            showNotification(`${playerInfo.username} is already in the game`);
         }
     });
+    updatePlayerCount();
 });
 
 socket.on('playerJoined', (playerData) => {
+    console.log('Player joined:', playerData);
     if (playerData.id !== playerId && !players.has(playerData.id)) {
-        const player = new Player(playerData.id, playerData.position, playerData.infected);
+        const player = new Player(playerData.id, playerData.username, playerData.position, playerData.infected);
         players.set(playerData.id, player);
         scene.add(player.mesh);
+        showNotification(`${playerData.username} joined the game`);
+        updatePlayerCount();
     }
 });
 
-socket.on('playerLeft', (playerId) => {
-    const player = players.get(playerId);
+socket.on('playerLeft', (id) => {
+    const player = players.get(id);
     if (player) {
+        showNotification(`${player.username} left the game`);
         scene.remove(player.mesh);
-        players.delete(playerId);
+        players.delete(id);
+        updatePlayerCount();
     }
 });
 
 socket.on('playerMoved', (playerData) => {
     const player = players.get(playerData.id);
     if (player) {
-        player.mesh.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
+        player.updatePosition(playerData.position);
         player.mesh.rotation.y = playerData.rotation.y;
         player.setInfected(playerData.infected);
     }
@@ -89,11 +137,30 @@ socket.on('infected', (playerId) => {
     const player = players.get(playerId);
     if (player) {
         player.setInfected(true);
+        showNotification(`${player.username} was infected!`);
     }
     if (playerId === socket.id) {
         localPlayer.setInfected(true);
+        showNotification('You were infected! Chase others!');
     }
 });
+
+socket.on('gameState', (state) => {
+    if (state.started) {
+        updateGameStatus(`Game in progress - ${state.survivorCount} survivors remaining`);
+    } else if (state.message) {
+        updateGameStatus(state.message);
+    } else {
+        updateGameStatus(`Waiting for players (${players.size + 1}/2 ready)`);
+    }
+});
+
+function updatePlayerCount() {
+    const totalPlayers = players.size + (localPlayer ? 1 : 0);
+    if (totalPlayers < 2) {
+        updateGameStatus(`Waiting for more players (${totalPlayers}/2 needed)`);
+    }
+}
 
 // Input handling
 document.addEventListener('keydown', (event) => {
@@ -163,14 +230,14 @@ function showUsernameModal() {
 // Make startGame available globally
 window.startGame = function() {
     const usernameInput = document.getElementById('username-input');
-    const username = usernameInput.value.trim();
+    username = usernameInput.value.trim();
     
     if (username) {
         const modal = document.getElementById('username-modal');
         modal.classList.remove('visible');
         
         // Create local player
-        localPlayer = new Player(playerId);
+        localPlayer = new Player(playerId, username);
         scene.add(localPlayer.mesh);
         
         // Notify server
@@ -178,6 +245,9 @@ window.startGame = function() {
             username: username,
             position: { x: 0, y: 1, z: 0 }
         });
+        
+        showNotification('You joined the game!');
+        updatePlayerCount();
         
         // Start animation loop
         animate();
